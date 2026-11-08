@@ -69,7 +69,7 @@ bool apply_native_camera(void* manager,const CameraCommand& cmd,int mode,CameraS
     __try {
         auto base=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
         native_camera_reject=CAM_VTABLE;
-        if(*reinterpret_cast<uintptr_t*>(manager)!=base+0xC9D3160) return false;
+        if(*reinterpret_cast<uintptr_t*>(manager)!=base+ac8_build::camera_table) return false;
         native_camera_reject=CAM_ROOT;
         auto root=*reinterpret_cast<uintptr_t*>(cmd.pawn+0x1A0);
         if(root<65536||(root&7)) return false;
@@ -177,14 +177,14 @@ bool install_native_camera() {
     const unsigned char update_bytes[]={0x48,0x8B,0xC4,0x48,0x89,0x58,0x18,0x57,0x48,0x81,0xEC,0x40,0x01,0,0};
     const unsigned char cache_bytes[]={0x48,0x8D,0x81,0xA0,0x14,0,0,0xC3};
     const unsigned char actor_bytes[]={0x48,0x8B,0x81,0xA0,0x01,0,0};
-    if(nt->FileHeader.TimeDateStamp!=0x6AA0E27D || nt->OptionalHeader.SizeOfImage!=0x2195A000 ||
-       memcmp(base+0x70C8ED0,update_bytes,sizeof(update_bytes)) ||
-       memcmp(base+0x48FC6B0,cache_bytes,sizeof(cache_bytes)) ||
-       memcmp(base+0x3FD7430+0x19,actor_bytes,sizeof(actor_bytes))) {
-        log_line("native camera refused: executable identity/signature mismatch"); return false;
+    if(nt->FileHeader.TimeDateStamp!=ac8_build::pe_timestamp || nt->OptionalHeader.SizeOfImage!=ac8_build::image_size ||
+       memcmp(base+ac8_build::camera_update,update_bytes,sizeof(update_bytes)) ||
+       memcmp(base+ac8_build::camera_cache_getter,cache_bytes,sizeof(cache_bytes)) ||
+       memcmp(base+ac8_build::actor_location_exec+0x19,actor_bytes,sizeof(actor_bytes))) {
+        log_line("native camera refused: executable identity/signature mismatch (expected Steam Build %u)",ac8_build::steam_build); return false;
     }
-    auto slot=reinterpret_cast<void**>(base+0xC9D3160+241*sizeof(void*));
-    if(*slot!=base+0x70C8ED0) { log_line("native camera refused: vtable slot already changed"); return false; }
+    auto slot=reinterpret_cast<void**>(base+ac8_build::camera_table+ac8_build::camera_update_slot*sizeof(void*));
+    if(*slot!=base+ac8_build::camera_update) { log_line("native camera refused: vtable slot already changed"); return false; }
     DWORD protection=0;
     if(!VirtualProtect(slot,sizeof(void*),PAGE_READWRITE,&protection)) return false;
     original_camera_update=reinterpret_cast<CameraUpdate>(*slot);

@@ -37,7 +37,7 @@ int main(){
  alignas(8) std::array<unsigned char,0x1600> manager{};
  manager.fill(0x5a);
  auto base=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
- *reinterpret_cast<uintptr_t*>(manager.data())=base+0xC9D3160;
+ *reinterpret_cast<uintptr_t*>(manager.data())=base+ac8_build::camera_table;
  *reinterpret_cast<uintptr_t*>(pawn.data()+0x1A0)=reinterpret_cast<uintptr_t>(root.data());
  double position[3]={100000000,200000000,300000000};memcpy(root.data()+0x220,position,sizeof(position));
  double originalPOV[6]={99997000,200000000,300000600,0,0,0};memcpy(manager.data()+0x14A0,originalPOV,sizeof(originalPOV));

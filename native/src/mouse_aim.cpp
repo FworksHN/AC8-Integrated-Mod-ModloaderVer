@@ -18,6 +18,7 @@
 #include <mutex>
 #include <array>
 #include "vendor/minhook/include/MinHook.h"
+#include "game_build.h"
 #include "yaw_signature.h"
 #include "flight_math.h"
 #include "free_look.h"
@@ -731,27 +732,27 @@ void receive_pose(const double (&v)[13]) {
 #include "smooth_overlay.h"
 #include "gpu_hud_loop.h"
 
-unsigned char* find_hook() {
+bool game_image_matches() {
     auto* base = reinterpret_cast<unsigned char*>(GetModuleHandleW(nullptr));
-    auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
-    if (!base || dos->e_magic != IMAGE_DOS_SIGNATURE) return nullptr;
-    auto* nt = reinterpret_cast<IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
-    if (nt->Signature != IMAGE_NT_SIGNATURE) return nullptr;
-    auto* sections = IMAGE_FIRST_SECTION(nt);
-    unsigned char* found{};
-    for (unsigned index = 0; index < nt->FileHeader.NumberOfSections; ++index) {
-        auto& section = sections[index];
-        if (!(section.Characteristics & IMAGE_SCN_MEM_EXECUTE)) continue;
-        auto* begin = base + section.VirtualAddress;
-        const size_t size = section.Misc.VirtualSize;
-        for (size_t offset = 0; offset + sizeof(yawCode) <= size; ++offset) {
-            if (begin[offset] == yawCode[0] && matchesYawCode(begin + offset, size - offset)) {
-                if (found) return nullptr;
-                found = begin + offset;
-            }
-        }
-    }
-    return found;
+    if (!base) return false;
+    auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) return false;
+    auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE) return false;
+    if (nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) return false;
+    return nt->FileHeader.TimeDateStamp == ac8_build::pe_timestamp &&
+        nt->OptionalHeader.SizeOfImage == ac8_build::image_size;
+}
+
+unsigned char* find_hook() {
+    // Pinned build: PE identity first, then the exact RVA, then the masked
+    // instruction fingerprint. The fingerprint covers 2323 bytes with only the
+    // RIP-relative displacements masked, so a shifted or unrelated function at
+    // this RVA is rejected rather than hooked.
+    if (!game_image_matches()) return nullptr;
+    auto* base = reinterpret_cast<unsigned char*>(GetModuleHandleW(nullptr));
+    auto* target = base + ac8_build::input;
+    return matchesYawCode(target, sizeof(yawCode)) ? target : nullptr;
 }
 
 bool create_absolute_hook(void* target, void* detour, void** trampoline_out) {
@@ -903,7 +904,7 @@ bool prepare_hook() {
     if (hook_created) return true;
     hook_address = find_hook();
     if (!hook_address) {
-        log_line("error input processor signature missing or ambiguous");
+        log_line("error game image or input signature mismatch (expected Steam Build %u)",ac8_build::steam_build);
         return false;
     }
     MH_STATUS result = MH_Initialize();
@@ -932,8 +933,22 @@ bool prepare_hook() {
 }
 
 bool offline_authorized() {
+    // Upstream gate: the game process must carry EOS_USE_ANTICHEATCLIENTNULL=1.
+    // ACE8 Mod Launcher & Loader disables anti-cheat with the "-eac-nop-loaded"
+    // argument and never forwards environment variables to the game (measured:
+    // see standalone/PROVENANCE.md section 4.1), so this gate can never pass
+    // under the launcher the standalone build targets. Defining
+    // AC8_MOUSE_AIM_LAUNCHER_SAFE keeps the check visible and records its
+    // absence instead of refusing to start.
     wchar_t value[16]{};
-    return GetEnvironmentVariableW(L"EOS_USE_ANTICHEATCLIENTNULL", value, 16) > 0 && wcscmp(value, L"1") == 0;
+    if (GetEnvironmentVariableW(L"EOS_USE_ANTICHEATCLIENTNULL", value, 16) > 0 && wcscmp(value, L"1") == 0)
+        return true;
+#ifdef AC8_MOUSE_AIM_LAUNCHER_SAFE
+    log_line("offline marker absent: launcher build continues (offline single-player only)");
+    return true;
+#else
+    return false;
+#endif
 }
 bool bridge_verified=false;
 DWORD bridge_thread=0;
@@ -960,8 +975,9 @@ extern "C" __declspec(dllexport) int ac8_mouseaim_start(lua_State* state) {
     }
     load_config();
     log_line("CAMERA_SETTINGS mode=%d distance_m=%.1f height_m=%.1f F3=toggle; mission/cinematic recenter enabled",camera_view_mode.load(),camera_distance_cm.load()/100,camera_height_cm.load()/100);
-    log_line("PROFILE 2.5.1 WAR=13.8 WAR-DEFAULT HUD=GUNCROSS-TOGGLE+HMD-FREELOOK KEY-TAKEOVER-SEED FLIGHT-REC-OPT LEVEL-REARM PEACE-BANK-GOAL WAR=FE-EXACT-WT PATH-LOCK QUINTIC-LEVEL IDLE-GATE-LEVEL ROLL-PREDICT-NEAR AIM-WINDOW CAMERA-FAULT-RETRY HIL-TUNED WT-LEVEL WT-OVERRIDE WAR-DEGRADED=V11.1 PEACE-WAR-CYCLE CONTROL default_mode=%d sensitivity=%.4f hud_target_hz=%d reference_fov=%.1f braking=%.2f",control_mode.load(),config.sensitivity,hud_target_hz.load(),config.mouse_reference_fov,config.arrival_braking);
+    log_line("PROFILE 2.5.1+26002268 WAR=13.8 WAR-DEFAULT HUD=GUNCROSS-TOGGLE+HMD-FREELOOK KEY-TAKEOVER-SEED FLIGHT-REC-OPT LEVEL-REARM PEACE-BANK-GOAL WAR=FE-EXACT-WT PATH-LOCK QUINTIC-LEVEL IDLE-GATE-LEVEL ROLL-PREDICT-NEAR AIM-WINDOW CAMERA-FAULT-RETRY HIL-TUNED WT-LEVEL WT-OVERRIDE WAR-DEGRADED=V11.1 PEACE-WAR-CYCLE CONTROL default_mode=%d sensitivity=%.4f hud_target_hz=%d reference_fov=%.1f braking=%.2f",control_mode.load(),config.sensitivity,hud_target_hz.load(),config.mouse_reference_fov,config.arrival_braking);
     if (!prepare_hook()) return 0;
+    log_line("input processor ready: Steam Build %u (anchors from game_build.h)",ac8_build::steam_build);
     install_native_camera();
     helmet::install();
     if (prepare_raw_input_capture()) {

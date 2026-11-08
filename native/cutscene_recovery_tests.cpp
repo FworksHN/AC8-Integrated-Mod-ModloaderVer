@@ -37,7 +37,7 @@ int main(){
  QueryPerformanceFrequency(&perf_frequency);
  manager.fill(0x5a);
  const auto base=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
- *reinterpret_cast<uintptr_t*>(manager.data())=base+0xC9D3160;
+ *reinterpret_cast<uintptr_t*>(manager.data())=base+ac8_build::camera_table;
  *reinterpret_cast<uintptr_t*>(pawn.data()+0x1A0)=reinterpret_cast<uintptr_t>(root.data());
  double position[3]={1e8,2e8,3e8};memcpy(root.data()+0x220,position,sizeof(position));
  double pov[6]={1e8-3000,2e8,3e8+600,0,0,0};memcpy(manager.data()+0x14A0,pov,sizeof(pov));

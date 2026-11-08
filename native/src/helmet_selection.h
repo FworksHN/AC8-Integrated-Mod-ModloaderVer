@@ -1,9 +1,10 @@
-// AC8 build 25201480. SelectTarget(bool bForcedSelect, LiveGameObject*
+// Steam Build 26002268. SelectTarget(bool bForcedSelect, LiveGameObject*
 // OverrideTarget, bool bForceBroadcast). Only the player release call site is
 // eligible; automatic, scripted and weapon-change calls retain stock behavior.
 #include <intrin.h>
+#include "game_build.h"
 namespace helmet {
-constexpr uintptr_t select_rva=0x7296f40, release_return_rva=0x7d630e0;
+constexpr uintptr_t select_rva=ac8_build::helmet_select, release_return_rva=ac8_build::helmet_release_return;
 struct Snapshot {uintptr_t pawn=0,component=0,selected=0,candidate=0;uint64_t tick=0;};
 Snapshot snapshot; // Written and consumed only on the verified game thread.
 using Select=uintptr_t(__fastcall*)(uintptr_t,bool,uintptr_t,bool);
@@ -73,8 +74,8 @@ bool install() {
     const unsigned char caller[]={0x48,0x8b,0x8b,0xe8,0x1a,0,0,0x45,0x33,0xc9,0x45,0x33,0xc0,0x33,0xd2,0xe8};
     bool match=false;
     __try {match=memcmp(base+select_rva,entry_bytes,sizeof(entry_bytes))==0 &&
-        memcmp(base+0x7d630cc,caller,sizeof(caller))==0 &&
-        *reinterpret_cast<const int32_t*>(base+0x7d630dc)==int32_t(select_rva-release_return_rva);
+        memcmp(base+release_return_rva-sizeof(int32_t)-sizeof(caller),caller,sizeof(caller))==0 &&
+        *reinterpret_cast<const int32_t*>(base+release_return_rva-sizeof(int32_t))==int32_t(select_rva-release_return_rva);
     } __except(EXCEPTION_EXECUTE_HANDLER) {match=false;}
     if(!match){log_line("HMD unavailable: selection signature mismatch; stock selection retained");return false;}
     auto status=MH_CreateHook(base+select_rva,reinterpret_cast<void*>(&select),reinterpret_cast<void**>(&original));
