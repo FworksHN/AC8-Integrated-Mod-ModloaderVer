@@ -41,14 +41,15 @@ loadable by it nor in need of it.
 
 | Requirement | Detail |
 |---|---|
-| Game version | Build **25201480** (Steam AppID 2288340). Other builds may change the input slot layout. |
+| Game version | Build **26002268** (Steam 1.01.002, AppID 2288340). The native module checks the PE timestamp `0x6AD2D0A7` and `SizeOfImage 0x215A2000`, so any other build is refused explicitly instead of patched blind. |
 | UE4SS.dll | Must be **`680a026890abb4d0df2211251f8defc1681a584275f1521dcc0fe30af480006f`** (`UE4SS3.0.1-1152-ge3ba1016`, 20,605,440 bytes). The native module hard-codes that SHA-256 in `native/src/lua_bridge.h`; any other build is refused with `bridge refused: UE4SS runtime hash mismatch`. ACE8 Mod Launcher installs exactly this build. |
 | VC++ runtime | Microsoft Visual C++ 2015-2022 **x64** Redistributable (the DLL imports `MSVCP140.dll`, `VCRUNTIME140.dll`, `VCRUNTIME140_1.dll`). |
 
 > **Offline marker:** the official native module additionally requires
 > `EOS_USE_ANTICHEATCLIENTNULL=1` in the game process environment, but ACE8 Mod Launcher does not
 > forward its environment to the game it starts (measured — see [PROVENANCE.md](PROVENANCE.md)).
-> The native module shipped with this folder drops that check; respect the boundary in section 4.
+> This build turns that gate into a compile-time switch (`AC8_MOUSE_AIM_LAUNCHER_SAFE`) and ships with
+> it off; respect the boundary in section 4.
 
 ---
 
@@ -77,26 +78,45 @@ An empty `enabled.txt` is how this UE4SS build enables a script mod; no `mods.tx
 
 ## 4. About the native module (important boundary)
 
-The `ac8_mouse_aim_010.dll` in Releases differs from the official one by exactly **12 bytes**:
+The `ac8_mouse_aim_010.dll` here is **not** the official v2.5.1 file: it is **recompiled from the
+v2.5.1 sources** against Build 26002268, not patched. Two kinds of change:
+
+**1) Game anchors moved to 26002268 (mandatory)**
+
+| Purpose | v2.5.1 (25201480) | this build (26002268) |
+|---|---|---|
+| Input processor | `.text` signature scan | RVA `0x4D2C040` + masked 2323-byte fingerprint |
+| Camera post-update | `0x70C8ED0` | `0x70B4960` |
+| Camera vtable | `0xC9D3160` (slot 241) | `0xC9BCE20` (slot 241, unchanged) |
+| Camera cache getter | `0x48FC6B0` | `0x48EF260` |
+| `ActorLocation` exec | `0x3FD7430` | `0x3FCABB0` |
+| HMD `SelectTarget` | `0x7296F40` | `0x7283700` |
+| HMD release call site | `0x7D630E0` | `0x7D529E0` |
+| PE timestamp / image size | `0x6AA0E27D` / `0x2195A000` | `0x6AD2D0A7` / `0x215A2000` |
+
+All anchors live in `native/src/game_build.h` and were byte-checked against the installed
+`AceCombat8.exe` (method and evidence: [../docs/ADAPTATION.md](../docs/ADAPTATION.md)). The input
+processor is now located by "PE identity + exact RVA + masked fingerprint" rather than a whole-section
+scan, because a scan can hit multiple candidates on a new build and refuse to start. The 2323-byte
+instruction fingerprint itself is **unchanged** — that function is still identical in 26002268.
+
+**2) Offline gate (compile-time switch)**
+
+The upstream check is kept in source; `build.cmd` compiles with `-DAC8_MOUSE_AIM_LAUNCHER_SAFE`, which
+logs the missing marker and continues instead of refusing. Remove the define to restore the strict
+upstream behaviour (which then cannot start under this launcher).
+
+**Unchanged:** the `UE4SS.dll` SHA-256 pin, all 22 exports, the 6 `LuaMadeSimple` imports, and every
+Lua script and UI asset (byte-identical to the upstream payload).
 
 ```
-file offset 0x441af   0F 84 68 03 00 00  ->  90 90 90 90 90 90
-file offset 0x441c7   0F 85 50 03 00 00  ->  90 90 90 90 90 90
+official v2.5.1   f66a8cf8a298c535b123b9857a904f9ce9241c59e92f908a032c4cb15a1783cf
+this build        see native.reference_build_sha256 in standalone/adapter-manifest.json
 ```
 
-Those are the two conditional jumps of the inlined `offline_authorized()`. NOP-ing them makes
-execution always take the authorised path, so `EOS_USE_ANTICHEATCLIENTNULL` is no longer required.
-
-**Everything else is untouched:** the `UE4SS.dll` SHA-256 pin (gate 1) still applies, all 22 exports
-and the 6 `LuaMadeSimple` imports from `UE4SS.dll` are unchanged, and size and PE structure are identical.
-
-```
-official   f66a8cf8a298c535b123b9857a904f9ce9241c59e92f908a032c4cb15a1783cf
-gate off   af02554981162ddcb2c87d95752a06c62a3065d95764578082c47c8aaeb2331d
-```
-
-`tools/patch-offline-gate.mjs` reproduces this from the official DLL, byte for byte, and verifies
-the input first (section 8).
+`native/build.cmd` builds an equivalent DLL on any machine with the VS 2022 C++ x64 toolchain (section 8).
+It is not byte-reproducible: MSVC stamps the PE header with the build time, so the SHA-256 of your
+build will differ from the recorded reference while the code is the same.
 
 > **Why it is needed:** the official gate demands `EOS_USE_ANTICHEATCLIENTNULL=1`, but ACE8 Mod
 > Launcher disables anti-cheat with `AceCombat8.exe -eac-nop-loaded -nosplash` and neither sets nor
@@ -158,7 +178,9 @@ Keybinds live in the `[keybindings]` section as **Windows virtual-key codes**: `
 |---|---|---|
 | Game runs, no mouse flight control at all | Native module did not start | Read the last line of `Logs\MouseAim-NNNNN.log` |
 | `bridge refused: UE4SS runtime hash mismatch` | Wrong `UE4SS.dll` | Use build `680a0268…006f` |
-| `inactive: offline launch marker missing` | You are using the **official** DLL and the game has no marker | Use the DLL from Releases (section 4) |
+| `error game image or input signature mismatch (expected Steam Build 26002268)` | Game is not Build 26002268 (typical after a Steam update) | Run `..\tools\verify\verify-anchors.ps1`, then re-derive anchors per [../docs/ADAPTATION.md](../docs/ADAPTATION.md) |
+| `native camera refused: executable identity/signature mismatch` | Same PE gate on the camera path | Same as above |
+| `inactive: offline launch marker missing` | You are using the **official** DLL (this build never logs it) | Use the DLL from this package (section 4) |
 | UE4SS cannot load the DLL | VC++ runtime missing | Install the x64 redistributable |
 | No `[AC8MouseAim] Loaded.` in `UE4SS.log` | `enabled.txt` missing or wrong folder depth | Check `…\ue4ss\Mods\AC8MouseAim\Scripts\main.lua` exists |
 | `Disabled: required game-thread callback unavailable.` | Wrong UE4SS build | Use the pinned build |
@@ -169,18 +191,26 @@ Keybinds live in the `[keybindings]` section as **Windows virtual-key codes**: `
 
 ## 8. Building the native module yourself
 
-The official DLL is not in this repository (`.gitignore` excludes `*.dll`). Two ways to get this build:
+This package **already contains** the compiled `Scripts\ac8_mouse_aim_010.dll`; you only need this to
+reproduce or retarget the build:
 
-```bash
-# 1) take the DLL from the official release and apply this repo's tool (recommended, verified)
-node tools/patch-offline-gate.mjs official_ac8_mouse_aim_010.dll out.dll
-
-# 2) rebuild from source (needs Visual Studio with the x86/x64 C++ toolchain)
-cd native && build.cmd        # produces native/build/ac8_mouse_aim_010.dll (official)
+```powershell
+# needs Visual Studio 2022 + C++ x64 toolchain (build.cmd calls vswhere/vcvars64 itself)
+cd native
+cmd /c build.cmd      # produces native/build/ac8_mouse_aim_010.dll
 ```
 
-Option 1 checks every patch site and refuses to write anything unless the input really is the
-official build (`f66a8cf8…`).
+`build.cmd` compiles `src/mouse_aim.cpp` plus the four MinHook C files with
+`cl /std:c++20 /EHsc /MD /O2 /LD`, links the import library generated from `src/ue4ss_lua.def`, and
+defines `AC8_MOUSE_AIM_LAUNCHER_SAFE` (section 4). Game anchors live in `src/game_build.h`; retargeting
+a new build means editing that one file and rebuilding.
+
+Verification helpers in the package root:
+
+```powershell
+tools\verify\verify-anchors.ps1                 # re-check every anchor against the installed exe
+tools\verify\verify-build.ps1 <dll path>        # check exports/imports/anchors inside the artifact
+```
 
 ---
 
@@ -195,10 +225,11 @@ the game folder.
 
 ## 10. Licence and origin
 
-MIT © 2026 CreeperUX for the mod and the integration (see the repo root [LICENSE](../LICENSE)).
+MIT © 2026 CreeperUX for the mod and the integration (see the package root [LICENSE](../LICENSE)).
 Upstream project: [FletcherMiya/AC8-Mouse-Aim](https://github.com/FletcherMiya/AC8-Mouse-Aim).
 UE4SS is MIT; MinHook, MouseFlight and font licences are in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)
-and `licenses/`. The full record of the separation, the hash cross-checks and the 12-byte patch is
-in [PROVENANCE.md](PROVENANCE.md).
+and `licenses/`. The full record of the separation and the offline gate is in [PROVENANCE.md](PROVENANCE.md);
+the Build 26002268 adaptation evidence is in [../docs/ADAPTATION.md](../docs/ADAPTATION.md).
+Reference implementation for the port: [GGforceP/AC8-Integrated-Mod-Enhanced](https://github.com/GGforceP/AC8-Integrated-Mod-Enhanced).
 
 [中文](README.md)

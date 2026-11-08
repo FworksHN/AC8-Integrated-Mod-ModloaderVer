@@ -1,9 +1,11 @@
-# AC8 Integrated Mod — v2.5.1
+# AC8 Integrated Mod — v2.5.1（独立版已适配 Build 26002268）
 
-> **Fork 说明（AC8MouseAim 独立版）**
+> **Fork 说明（AC8MouseAim 独立版 · Build 26002268）**
+> 本仓库的 `standalone/` **已重建到 Steam 1.01.002 / Build 26002268**：原生模块按新版游戏的输入、相机、头盔瞄准函数地址重新编译，随 `standalone/AC8MouseAim/` 一起提供。上游独立版面向的是 Build 25201480，在新版游戏里会明确拒绝启动。
 > 对于体积与原版机体相差较大的新增机体（如 AERIAL UAV TRANSPORT 'LADON'），如果在使用时遇到相机位置不正常，请按 **F3** 切换为原版相机设置。
-> 该独立版**仅在 [ACE8 Mod Launcher & Loader V 2.0.0](https://www.nexusmods.com/acecombat8wingsoftheve/mods/64) 上做过实测**；其他安装方式（例如手动安装 UE4SS、其他启动器／加载器组合）**未经验证，不保证有效**。
-> 独立版的安装、配置与原生模块说明见 [`standalone/`](standalone/README.md)。
+> 该独立版**仅在 [ACE8 Mod Launcher & Loader V 2.0.0](https://www.nexusmods.com/acecombat8wingsoftheve/mods/64) 上做过测试**；其他安装方式（例如手动安装 UE4SS、其他启动器／加载器组合）**未经验证，不保证有效**。
+> 安装、配置、原生模块说明见 [`standalone/`](standalone/README.md)；改了哪些偏移、怎么验证的见 [`docs/ADAPTATION.md`](docs/ADAPTATION.md)。
+> 独立版的适配只做到「静态锚点全部命中 + 产物契约正确」，**没有做游戏内实测**。
 
 **正式版。仅限离线单人，禁止用于线上或多人游戏。**
 

@@ -1,0 +1,36 @@
+{
+  "version": "2.5.1+26002268",
+  "based_on": "CreeperUX/AC8-Integrated-Mod v2.5.1 (commit cce68d50d35ba7eda0cd612fb25baf878b594f1c)",
+  "standalone_port": "Astervolans/AC8-Integrated-Mod standalone-v2.5.1",
+  "reference_port": "GGforceP/AC8-Integrated-Mod-Enhanced v2.6.0 (Build 26002268 port)",
+  "game": {
+    "steam_app_id": 2288340,
+    "steam_version": "1.01.002",
+    "build": "26002268",
+    "exe_sha256": "3E47FD42858D1F2B81E59D7F57394A014C0EB6AAF4C02EE3DA351B6A42936BE2",
+    "exe_size": 551201904,
+    "pe_timestamp": "0x6AD2D0A7",
+    "image_size": "0x215A2000"
+  },
+  "native": {
+    "file": "standalone/AC8MouseAim/Scripts/ac8_mouse_aim_010.dll",
+    "shipped_in_repo": false,
+    "build_with": "native/build.cmd (needs Visual Studio 2022 + C++ x64 toolchain)",
+    "reference_build_sha256": "60EE58B4BDD87CACE02F7FB6CD4B16C46F19EBA82A53331681466E9D3E3FEF95",
+    "reference_build_size": 8400896,
+    "reproducibility_note": "Not byte-reproducible: MSVC stamps the PE header with the build time, so an identical source tree on another machine produces the same code with a different SHA-256. Use reference_build_size and the checks in tools/verify/verify-build.ps1 to confirm a build is correct.",
+    "exports": 22,
+    "ue4ss_imports": 6,
+    "ue4ss_dll_sha256_pin": "680A026890ABB4D0DF2211251F8DEFC1681A584275F1521DCC0FE30AF480006F",
+    "offline_gate": "compiled out via AC8_MOUSE_AIM_LAUNCHER_SAFE"
+  },
+  "toolchain": {
+    "compiler": "MSVC 2022 (cl 19.x, /std:c++20 /EHsc /MD /O2 /LD)",
+    "machine": "0x8664"
+  },
+  "verification": {
+    "anchors": "tools/verify/verify-anchors.ps1 — 10/10 OK against the installed exe",
+    "artifact": "tools/verify/verify-build.ps1 — exports, imports, anchors, log strings all present",
+    "in_game": "NOT PERFORMED — needs an offline mission run on the target machine"
+  }
+}

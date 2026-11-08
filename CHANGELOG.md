@@ -1,3 +1,17 @@
+## 2.5.1+26002268 (standalone port)
+
+Standalone `AC8MouseAim` rebuilt from the v2.5.1 sources for Steam 1.01.002 / Build 26002268.
+The upstream standalone release targets Build 25201480 and refuses to start on this build.
+
+- Game anchors: all seven function RVAs moved with the update. Input processor `0x4D2C040`, camera post-update `0x70B4960`, camera vtable `0xC9BCE20` (slot 241 unchanged), camera cache getter `0x48EF260`, `ActorLocation` exec `0x3FCABB0`, HMD `SelectTarget` `0x7283700`, HMD release call site `0x7D529E0`. They live in `native/src/game_build.h` and were byte-checked against the shipped executable.
+- Input processor is now located by PE identity (timestamp `0x6AD2D0A7`, image size `0x215A2000`) plus an exact RVA and the existing masked 2323-byte fingerprint, instead of a whole-section scan that could hit multiple candidates. A mismatch now logs the expected build.
+- Camera install and HMD install use the same PE gate, and their byte checks are unchanged in kind (prologue, cache getter, `ActorLocation+0x19`, vtable slot, HMD entry plus caller/rel32).
+- The offline launch gate (`EOS_USE_ANTICHEATCLIENTNULL=1`) is kept in source and compiled out with `AC8_MOUSE_AIM_LAUNCHER_SAFE`, because ACE8 Mod Launcher disables anti-cheat with `-eac-nop-loaded` and never forwards environment variables. Upstream shipped this as a 12-byte NOP patch on the official DLL; a source switch is auditable and does not depend on binary offsets.
+- Unchanged: every Lua script and UI asset (byte-identical to the v2.5.1 payload), the input slot layout (slot 1 is yaw), the UE object struct offsets, the `UE4SS.dll` SHA-256 pin, the 22 exports and the 6 `LuaMadeSimple` imports.
+- Added `docs/ADAPTATION.md` (evidence and retargeting steps) and `tools/verify/` (anchor and artifact verification, Python only).
+- The compiled DLL is not committed: `scripts/validate-source.py` keeps binaries out of the tree, the same rule upstream follows. Build it with `native/build.cmd`; `standalone/adapter-manifest.json` records the reference size, export count and the reference hash. The build is not byte-reproducible — MSVC stamps the PE header with the build time — so compare structure and behaviour, not the hash.
+- Verification: all 10 anchors matched the installed `AceCombat8.exe` (SHA-256 `3E47FD42858D1F2B81E59D7F57394A014C0EB6AAF4C02EE3DA351B6A42936BE2`, identical to the build the Enhanced port records). No in-game test was performed for this port.
+
 ## 2.5.1
 
 - First public release of the 2.5 line (the entries under 2.5.0 below). 2.5.0 was a small test build; installed copies update to 2.5.1 from the launcher.
