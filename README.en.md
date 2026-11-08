@@ -73,6 +73,7 @@ and export count in `standalone/adapter-manifest.json` plus the scripts below.
 ```powershell
 tools\verify\verify-anchors.ps1                 # re-check all 10 anchors against the installed AceCombat8.exe
 tools\verify\verify-build.ps1 <dll path>        # exports, imports and anchor immediates inside a built DLL
+python tools\verify\retarget.py --self-test     # confirm the retargeting tool still matches this build
 python scripts\validate-source.py               # source audit (also run by CI)
 ```
 

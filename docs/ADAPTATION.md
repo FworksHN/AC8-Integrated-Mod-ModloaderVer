@@ -205,5 +205,41 @@ cd native; cmd /c build.cmd; cd ..
 Copy-Item .\native\build\ac8_mouse_aim_010.dll .\standalone\AC8MouseAim\Scripts\ -Force
 ```
 
-换到更新的 build 时，只需要：拿新 exe 跑第 1 步 → 按失败项重新定位 RVA（更新 `game_build.h`）
-→ 第 2~3 步。
+---
+
+## 9. 游戏再更新时怎么重取锚点
+
+如果更新只是移动地址、没有改这几个函数本身（第 7 节的情况 B），不需要重新逆向：
+
+```powershell
+# 先确认工具本身还对得上当前版本（它会和自己仓库里的 game_build.h 对比）
+python tools\verify\retarget.py --self-test
+
+# 用新版 exe 重取全部锚点，直接生成 game_build.h
+python tools\verify\retarget.py --new-exe "<新的 AceCombat8.exe>" --build <新构建号> --out native\src\game_build.h
+```
+
+工具对每个锚点用**两条独立证据**：一条指令指纹负责"定位"，一条结构关系负责"证明"。
+
+| 锚点 | 定位 | 证明 |
+|---|---|---|
+| input | 2323 字节掩码指纹（2111 字节必须逐字节相同） | 唯一命中 |
+| camera_update | 15 字节函数序言 | 只有被某个 vtable **槽 241** 指向的那个候选存活 |
+| camera_table | —— | 由上面的 vtable 引用反推，槽位偏移再校验一遍 |
+| camera_cache_getter | 9 字节 `lea rax,[rcx+0x14A0]; ret` | 唯一命中 |
+| actor_location_exec | 48 字节函数头 | 唯一命中，且 `head+0x19` 仍是 `mov rax,[rcx+0x1A0]` |
+| helmet_select | 21 字节入口 | 唯一命中 |
+| helmet_release_return | 16 字节调用点 | `rel32` 必须正好指向前一步的 `helmet_select` |
+
+当某个锚点命中的候选过多、或证明链不成立时，工具**退出码非 0 且不写 header**（不会产出半成品）。
+若输出里出现 `function body probably changed`，说明那段指令只匹配了一部分——那是第 7 节的情况 C，
+需要反汇编，`retarget.py` 帮不上忙。
+
+重取之后照第 8 节第 2~4 步重编、复核、覆盖，另外还要跑一遍原生单测：
+
+```powershell
+cd native; cmd /c test.cmd; cd ..
+```
+
+> `camera_context_tests` 和 `cutscene_recovery_tests` 已经改成跟随 `ac8_build::camera_table`，
+> 所以换版本后它们会自动用新值，不需要手工跟着改。

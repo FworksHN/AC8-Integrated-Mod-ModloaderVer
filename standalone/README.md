@@ -238,6 +238,14 @@ cmd /c build.cmd      # 产出 native/build/ac8_mouse_aim_010.dll
 链接 `src/ue4ss_lua.def` 生成的导入库，并定义 `AC8_MOUSE_AIM_LAUNCHER_SAFE`（见第 4 节）。
 游戏版本锚点在 `src/game_build.h`，改那一处 + 重编即可换版本。
 
+游戏更新后不想手动量偏移的话，`retarget.py` 能一条命令重算整份 `game_build.h`
+（每个锚点都有"指纹定位 + 结构证明"两重证据，定位不唯一就拒绝写出）：
+
+```powershell
+python tools\verify\retarget.py --self-test                       # 先确认工具对当前版本还对得上
+python tools\verify\retarget.py --new-exe "<新版 AceCombat8.exe>" --build <新构建号> --out native\src\game_build.h
+```
+
 构建前后都可以跑 `tools\verify\` 下的校验脚本：
 
 ```powershell

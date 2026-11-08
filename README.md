@@ -69,6 +69,7 @@ cmd /c build.cmd        # 产出 native/build/ac8_mouse_aim_010.dll
 ```powershell
 tools\verify\verify-anchors.ps1                 # 对实机 AceCombat8.exe 复核全部 10 个锚点
 tools\verify\verify-build.ps1 <dll 路径>        # 复核导出/导入/锚点常量是否落进产物
+python tools\verify\retarget.py --self-test     # 确认重取锚点的工具本身还对得上当前版本
 python scripts\validate-source.py               # 仓库源码审计（CI 也会跑）
 ```
 

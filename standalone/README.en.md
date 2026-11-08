@@ -205,6 +205,15 @@ cmd /c build.cmd      # produces native/build/ac8_mouse_aim_010.dll
 defines `AC8_MOUSE_AIM_LAUNCHER_SAFE` (section 4). Game anchors live in `src/game_build.h`; retargeting
 a new build means editing that one file and rebuilding.
 
+When the game updates you do not have to measure offsets by hand — `retarget.py` recomputes the whole
+header from the new executable, with two independent proofs per anchor (a fingerprint that locates it and
+a structural relation that confirms it). It refuses to write anything when a candidate is ambiguous:
+
+```powershell
+python tools\verify\retarget.py --self-test                       # confirm the tool still matches this build
+python tools\verify\retarget.py --new-exe "<new AceCombat8.exe>" --build <new build number> --out native\src\game_build.h
+```
+
 Verification helpers in the package root:
 
 ```powershell
